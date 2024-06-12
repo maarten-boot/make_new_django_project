@@ -1,0 +1,1 @@
+# make_new_django_project
