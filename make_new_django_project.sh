@@ -242,6 +242,9 @@ import dotenv
 
 dotenv.load_dotenv()
 
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
+DEBUG = bool(os.getenv("DJANGO_DEBUG", False))
+
 ALLOWED_HOSTS = [
     "localhost",
     "127.0.0.1",
@@ -261,6 +264,53 @@ if ${PG_DATABASE_EXISTS}: # the database must exist
 
 STATIC_ROOT = BASE_DIR/'static'
 
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+]
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "mail_admins": {
+            "level": "ERROR",
+            "class": "django.utils.log.AdminEmailHandler",
+        },
+        "stream_to_console": {
+            "level": "DEBUG",
+            "class": "logging.StreamHandler",
+        },
+    },
+    "loggers": {
+        "django.request": {
+            "handlers": [
+                "mail_admins",
+            ],
+            "level": os.getenv("DJANGO_LOG_LEVEL","WARNING"),
+            "propagate": True,
+        },
+    },
+}
+
+if ${WITH_LDAP}:
+    LOGGING["loggers"]["django_auth_ldap"] = {
+        "handlers": [
+            "stream_to_console",
+        ],
+        "level": os.getenv("DJANGO_LOG_LEVEL","WARNING"),
+        "propagate": True,
+    }
+
+LANGUAGE_CODE = os.getenv("DJANGO_LANGUAGE_CODE","en-us")
+TIME_ZONE = os.getenv("DJANGO_TIME_ZONE", "UTC")
+USE_I18N = bool(os.getenv("DJANGO_USE_I18N", True))
+USE_L10N = bool(os.getenv("DJANGO_USE_L10N", True))
+USE_TZ = bool(os.getenv("DJANGO_USE_TZ", True))
+
+TEMPLATES[0]["DIRS"] = [
+    f"{BASE_DIR}/templates",
+]
+
 !
 }
 
@@ -269,11 +319,34 @@ make_dot_env()
     touch .env
 
     (
-        echo "PG_DB=${PG_DB}"
-        echo "PG_USER=${PG_USER}"
-        echo "PG_PASSWORD=$( cat .db_pw )" # on the same level as .env
-        echo "PG_HOST=localhost"
-        echo "PG_PORT=5432"
+    cat <<!
+# centralize configuration
+ENVIRONMENT="DEV"
+
+DJANGO_LOG_LEVEL="WARNING"
+DJANGO_LOGGERS_HANDLERS="console"
+DJANGO_LOGGERS_HANDLERS_ROOT="console"
+DJANGO_LOGGERS_HANDLERS_APP="console"
+
+# SECURITY WARNING: don't run with debug turned on in production!
+DJANGO_DEBUG=True
+
+# SECURITY WARNING: keep the secret key used in production secret!
+DJANGO_SECRET_KEY="$(pwgen -s 32)"
+
+PG_DB="${PG_DB}"
+PG_USER="${PG_USER}"
+PG_PASSWORD=$( cat .db_pw )
+PG_HOST="localhost"
+PG_PORT=5432"
+
+DJANGO_LANGUAGE_CODE="en-us"
+DJANGO_TIME_ZONE="Europe/Zagreb"
+DJANGO_USE_I18N=True
+DJANGO_USE_L10N=True
+DJANGO_USE_TZ=True
+
+!
     ) >> .env
 }
 
@@ -299,8 +372,10 @@ main()
 
             # static
             mkdir static
+            mkdir templates
 
-            ./manage.py migrate # this will use sqlite
+            ./manage.py startapp apAbstract # abstract models
+            ./manage.py migrate
             ./manage.py collectstatic
             ./manage.py createsuperuser --username admin --email admin@test.test
 
