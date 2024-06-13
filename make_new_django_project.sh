@@ -311,6 +311,9 @@ TEMPLATES[0]["DIRS"] = [
     f"{BASE_DIR}/templates",
 ]
 
+if os.path.exists(f"{BASE_DIR}/aMain"):
+    INSTALLED_APPS.append("aMain.apps.AmainConfig")
+
 !
 }
 
@@ -350,6 +353,152 @@ DJANGO_USE_TZ=True
     ) >> .env
 }
 
+
+make_aMain()
+{
+    local name="aMain"
+
+    # we are at:
+    # pushd "${VENV}"
+    # pushd "${PROJECT_NAME}"
+
+    ./manage.py startapp "${name}" # abstract models
+    pushd "${name}"
+
+    mkdir -p "templates/${name}"
+    cat <<! >"templates/${name}/index.html"
+
+{% extends "base_generic.html" %}
+
+{% block title %} {{ section.title }} {% endblock %}
+
+{% block sidebar %}
+  <ul class="sidebar-nav">
+    <li><a href="{% url 'index' %}">Home</a></li>
+    {% for item in navigation %}
+      <li><a href="{{item.url }}">{{ item.label }}</a></li>
+    {% endfor %}
+  </ul>
+{% endblock %}
+
+{% block content %}
+    some dummy content
+{% endblock %}
+
+!
+    cat <<! >views.py
+from django.shortcuts import (
+    render,
+    redirect,
+)
+
+def empty(request):
+    return redirect("index")
+
+def index(request):
+    section = {"title": "${name}"}
+    context = {
+        "section": section,
+        "navigation": [
+            {
+                "url": "/admin",
+                "label": "Admin",
+            },
+        ],
+        "content": "",
+    }
+    return render(request, "${name}/index.html", context)
+!
+
+    cat <<! >urls.py
+from django.urls import path
+
+from . import views
+
+urlpatterns = [
+    path("", views.index, name="index"),
+]
+!
+
+    popd
+
+    pushd "${PROJECT_NAME}"
+
+    cat <<! >>urls.py
+from django.urls import include
+
+urlpatterns.append(
+    path("", include("aMain.urls")),
+)
+!
+
+    popd
+}
+
+make_base_template()
+{
+    cat <<! > base_generic.html
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <title>{% block title %}{% endblock %}</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+    integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN"
+    crossorigin="anonymous"
+  />
+
+  <!-- Add additional CSS in static file -->
+  {% load static %}
+
+  <link
+    rel="stylesheet"
+    href="{% static 'css/styles.css' %}"
+  />
+
+</head>
+
+<body>
+  <div class="container-fluid">
+
+    <div class="row">
+      <div class="col">
+        {% block top %}just a top line{% endblock %}
+        <hr style="background-color: black; height: 2px; border: 0;"/>
+      </div>
+    </div>
+
+    <div class="row">
+
+      <div class="col-sm-auto">
+      {% block sidebar %}
+        <ul class="sidebar-nav">
+          <li><a href="{% url 'index' %}">Home</a></li>
+        </ul>
+      {% endblock %}
+      </div>
+
+      <div class="col">
+        {% block content %}
+        {% endblock %}
+      </div>
+
+    </div>
+
+  </div>
+</body>
+
+</html>
+
+!
+
+}
+
 main()
 {
     prep
@@ -372,9 +521,16 @@ main()
 
             # static
             mkdir static
-            mkdir templates
 
-            ./manage.py startapp apAbstract # abstract models
+            mkdir templates
+            pushd templates
+                make_base_template
+            popd
+
+            ./manage.py startapp aAbstract # abstract models
+
+            make_aMain
+
             ./manage.py migrate
             ./manage.py collectstatic
             ./manage.py createsuperuser --username admin --email admin@test.test
