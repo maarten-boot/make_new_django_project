@@ -14,7 +14,7 @@ WITH_ERASE_PREVIOUS="1"
 
 export HERE=$( realpath .)
 export WITH_REST="0"
-export WITH_LDAP="0"
+export WITH_LDAP="1"
 export WITH_FORMATTING="0"
 export VENV="xdev"
 export PROJECT_NAME="project" # the django project name
