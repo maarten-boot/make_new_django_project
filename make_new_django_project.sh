@@ -8,16 +8,28 @@ LOG_DIR="."
 LOG_FILE="${LOG_DIR}/${THIS}-${DATE}.log"
 
 # ==============================
+# ==============================
+## START CONFIG
 
 PY_VERSION="3.12"
+
+# Will we erase any existing VENV yes=1
 WITH_ERASE_PREVIOUS="1"
 
 export HERE=$( realpath .)
+
+# OPTIONAL LDAP AND REST
 export WITH_REST="0"
 export WITH_LDAP="1"
+
+# OPTIONAL formatting tools
 export WITH_FORMATTING="0"
+
+# VENV AND PROJECT
 export VENV="xdev"
 export PROJECT_NAME="project" # the django project name
+
+# POSTGRES DATABASE
 export PG_USER="xdev"
 export PG_DB="xdevdb"
 
@@ -30,6 +42,8 @@ GUNICORN_NAME="gunicorn003"
 
 export PG_DATABASE_EXISTS=0
 
+# END CONFIG
+# ==============================
 # ==============================
 
 prep()
@@ -216,17 +230,23 @@ prep_pg_db()
         tee "${VENV}/.db_pw"
     )
 
-    # sudo su - postgres
-    # psql
-
     cat <<!
+# to create the database:
+sudo su - postgres
+psql
+
+-- cut and paste the next section in psql
+-- start
+-- # if the user and database already exist uncommen the next 2 lines
 -- DROP USER IF EXISTS $PG_USER;
 -- DROP DATABASE IF EXISTS $PG_DB;
+--
 CREATE USER ${PG_USER} WITH PASSWORD '${pw}';
 CREATE DATABASE ${PG_DB} OWNER ${PG_USER};
 ALTER ROLE ${PG_USER} SET client_encoding TO 'utf8';
 ALTER ROLE ${PG_USER} SET default_transaction_isolation TO 'read committed';
 ALTER ROLE ${PG_USER} SET timezone TO 'UTC';
+-- end
 !
     echo
 }
@@ -250,7 +270,7 @@ ALLOWED_HOSTS = [
     "127.0.0.1",
 ]
 
-if ${PG_DATABASE_EXISTS}: # the database must exist
+if ${PG_DATABASE_EXISTS}: # PG_DATABASE_EXISTS="${PG_DATABASE_EXISTS}"
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
@@ -292,7 +312,7 @@ LOGGING = {
     },
 }
 
-if ${WITH_LDAP}:
+if ${WITH_LDAP}: # WITH_LDAP="${WITH_LDAP}"
     LOGGING["loggers"]["django_auth_ldap"] = {
         "handlers": [
             "stream_to_console",
@@ -318,7 +338,8 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
-if ${WITH_LDAP}:
+if ${WITH_LDAP}: # WITH_LDAP="${WITH_LDAP}"
+
     # this is a Active Directory ldap config
 
     import ldap
@@ -634,6 +655,8 @@ main()
 
             ./manage.py migrate
             ./manage.py collectstatic
+
+            echo "./manage.py createsuperuser --username admin --email admin@test.test"
             ./manage.py createsuperuser --username admin --email admin@test.test
 
             echo "RUN THE SERVER on port ${TESTPORT}"
