@@ -7,54 +7,56 @@ DATE=$( date +%Y%m%d-%H%M%S )
 LOG_DIR="."
 LOG_FILE="${LOG_DIR}/${THIS}-${DATE}.log"
 
-# ==============================
-# ==============================
-## START CONFIG
+configMe()
+{
+    # ==============================
+    ## START CONFIG
 
-PY_VERSION="3.12"
+    PY_VERSION="3.12" # this [python version must exist on this platform
 
-# Will we erase any existing VENV yes=1
-WITH_ERASE_PREVIOUS="1"
+    # Will we erase any existing VENV yes=1
+    WITH_ERASE_PREVIOUS="1"
 
-export HERE=$( realpath .)
+    export HERE=$( realpath . ) # where will we create the venv and run all commands
 
-# OPTIONAL LDAP AND REST
-export WITH_REST="0"
-export WITH_LDAP="1"
+    # OPTIONAL LDAP AND REST
+    export WITH_REST="0"
+    export WITH_LDAP="1"
 
-# OPTIONAL formatting tools
-export WITH_FORMATTING="0"
+    # OPTIONAL formatting tools
+    export WITH_FORMATTING="0"
 
-# VENV AND PROJECT
-export VENV="xdev"
-export PROJECT_NAME="project" # the django project name
+    # VENV AND PROJECT
+    export VENV="xdev"
+    export PROJECT_NAME="project" # the django project name
 
-# POSTGRES DATABASE
-export PG_USER="xdev"
-export PG_DB="xdevdb"
+    # POSTGRES DATABASE
+    export PG_USER="xdev"
+    export PG_DB="xdevdb"
+    export PG_DATABASE_EXISTS=0 # initially it does not exist
 
-USER=$( id -u -n)
-GROUP=$( id -g -n )
+    export SYSTEMD_USER=$( id -u -n)
+    export SYSTEMD_GROUP=$( id -g -n )
 
-TESTPORT=8888
-NGINX_PORT="83"
-GUNICORN_NAME="gunicorn003"
+    export DJANGO_TESTPORT=8888
+    export NGINX_PORT="83"
+    export GUNICORN_NAME="gunicorn003"
 
-export PG_DATABASE_EXISTS=0
-
-# END CONFIG
-# ==============================
-# ==============================
+    # END CONFIG
+    # ==============================
+}
 
 prep()
 {
-    [ "${WITH_ERASE_PREVIOUS}" == "1" ] && {
-        rm -rf "${VENV}"
-    }
-
     python3 -V | grep "${PY_VERSION}" || {
         echo "FATAL: you will need python with version ${PY_VERSION}"
         exit 101
+    }
+
+    cd "${HERE}"
+
+    [ "${WITH_ERASE_PREVIOUS}" == "1" ] && {
+        rm -rf "${VENV}"
     }
 
     [ -d "${VENV}" ] && {
@@ -171,8 +173,8 @@ server {
 
 mk_gunicorn_systemd_service()
 {
-    # USER
-    # GROUP
+    # SYSTEMD_USER
+    # SYSTEMD_GROUP
     # HERE
     # VENV
     # PROJECT_NAME
@@ -187,8 +189,8 @@ After=network.target
 # set user and group
 [Service]
 Type=notify
-User=${USER}
-Group=${GROUP}
+User=${SYSTEMD_USER}
+Group=${SYSTEMD_GROUP}
 RuntimeDirectory=${GUNICORN_NAME}
 WorkingDirectory=${HERE}/${PROJECT_NAME}
 ExecStart=${HERE}/bin/gunicorn --access-logfile - --workers 3 --timeout 600 --bind unix:/run/${GUNICORN_NAME}.sock ${PROJECT_NAME}.wsgi:application
@@ -275,7 +277,7 @@ if ${PG_DATABASE_EXISTS}: # PG_DATABASE_EXISTS="${PG_DATABASE_EXISTS}"
         "default": {
             "ENGINE": "django.db.backends.postgresql",
             "NAME": os.getenv("PG_DB"),
-            "USER": os.getenv("PG_USER"),
+            "SYSTEMD_USER": os.getenv("PG_USER"),
             "PASSWORD": os.getenv("PG_PASSWORD"), # from .env
             "HOST": os.getenv("PG_HOST","localhost"),
             "PORT": os.getenv("PG_PORT",""),
@@ -677,6 +679,10 @@ class AbsCommonName(AbsBase):
 
 main()
 {
+    configMe
+
+    cd "${HERE}"
+
     prep
     activate_proj
 
@@ -709,8 +715,8 @@ main()
             echo "./manage.py createsuperuser --username admin --email admin@test.test"
             ./manage.py createsuperuser --username admin --email admin@test.test
 
-            echo "RUN THE SERVER on port ${TESTPORT}"
-            ./manage.py runserver  "${TESTPORT}"
+            echo "RUN THE SERVER on port ${DJANGO_TESTPORT}"
+            ./manage.py runserver  "${DJANGO_TESTPORT}"
         popd
     popd
 }
