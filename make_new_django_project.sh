@@ -613,16 +613,66 @@ make_base_template()
 
 make_global_templates()
 {
-    mkdir templates
-    pushd templates
+    # we are at:
+    # pushd "${VENV}"
+    # pushd "${PROJECT_NAME}"
+
+    local name="templates"
+
+    mkdir "${name}"
+
+    pushd "${name}"
         make_base_template
     popd
 }
 
 make_app_abstract()
 {
-   ./manage.py startapp aAbstract # abstract models
+    # we are at:
+    # pushd "${VENV}"
+    # pushd "${PROJECT_NAME}"
 
+    local name="aAbstract"
+
+   ./manage.py startapp "${name}" # abstract models
+
+    pushd "${name}"
+
+        cat <<!
+
+class AbsBase(models.Model):
+    # The absolute Basics for all
+    id = models.AutoField(primary_key=True)
+
+    creStamp = models.DateTimeField(auto_now=False, auto_now_add=True, null=False)
+    updStamp = models.DateTimeField(auto_now=True, auto_now_add=False, null=True)
+
+    class Meta:
+        abstract = True
+
+    def __repr__(self):
+        return "<%d>" % (self.id)
+
+    def __str__(self):
+        return "<%d>" % (self.id)
+
+class AbsCommonName(AbsBase):
+    # having Name and description
+
+    name = models.CharField(max_length=128, unique=True, null=False)
+    description = models.TextField(blank=True, null=True)
+
+    class Meta:
+        abstract = True
+
+    def __repr__(self):
+        return "<%s>" % (self.name)
+
+    def __str__(self):
+        return "<%s>" % (self.name)
+!
+
+    popd
 }
 
 main()
