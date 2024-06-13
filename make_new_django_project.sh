@@ -311,6 +311,80 @@ TEMPLATES[0]["DIRS"] = [
     f"{BASE_DIR}/templates",
 ]
 
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
+
+if ${WITH_LDAP}:
+    # this is a Active Directory ldap config
+
+    import ldap
+    from django_auth_ldap.config import (
+        LDAPSearch,
+        ActiveDirectoryGroupType,
+    )
+
+    AUTHENTICATION_BACKENDS = [
+        "django_auth_ldap.backend.LDAPBackend",
+        "django.contrib.auth.backends.ModelBackend",
+    ]
+
+    AUTH_LDAP_SERVER_URI = ",".join([os.getenv("LDAP_SERVER_URL")])
+    AUTH_LDAP_START_TLS = True
+    LDAP_IGNORE_CERT_ERRORS = True
+
+    AUTH_LDAP_CONNECTION_OPTIONS = {
+        ldap.OPT_REFERRALS: 0,  # int
+        ldap.OPT_X_TLS_REQUIRE_CERT: ldap.OPT_X_TLS_ALLOW,  # do not enfoce a valid Cert
+    }
+
+    AUTH_LDAP_GLOBAL_OPTIONS = {
+        ldap.OPT_X_TLS_REQUIRE_CERT: ldap.OPT_X_TLS_ALLOW,  # do not enfoce a valid Cert
+        ldap.OPT_REFERRALS: 0,  # int
+    }
+
+    AUTH_LDAP_BIND_DN = os.getenv("LDAP_BIND_DN")
+    AUTH_LDAP_BIND_PASSWORD = os.getenv("LDAP_BIND_PW")
+
+    XLDAP_BASE = os.getenv("LDAP_BASE")
+
+    AUTH_LDAP_USER_SEARCH = LDAPSearch(
+        os.getenv("LDAP_BASE"),
+        ldap.SCOPE_SUBTREE,
+        "(&(objectClass=user)(sAMAccountName=%(user)s))",
+    )
+
+    # Set up the basic group parameters.
+    AUTH_LDAP_GROUP_SEARCH = LDAPSearch(
+        os.getenv("LDAP_BASE"),
+        ldap.SCOPE_SUBTREE,
+        "(objectClass=group)",
+    )
+
+    AUTH_LDAP_GROUP_TYPE = ActiveDirectoryGroupType()
+
+    AUTH_LDAP_USER_FLAGS_BY_GROUP = {
+        "is_staff": os.getenv("LDAP_IS_STAFF_GROUP"),
+        "is_active": os.getenv("LDAP_IS_ACTIVE_GROUP"),
+    }
+
+    AUTH_LDAP_USER_ATTR_MAP = {
+        "username": "sAMAccountName",
+        "first_name": "givenName",
+        "last_name": "sn",
+        "email": "mail",  # other fields as needed
+    }
+
+    # To ensure user object is updated each time on login
+    AUTH_LDAP_ALWAYS_UPDATE_USER = True
+    AUTH_LDAP_FIND_GROUP_PERMS = True
+    AUTH_LDAP_CACHE_GROUPS = True
+    AUTH_LDAP_CACHE_TIMEOUT = 60 * 20  # 20 minutes
+    AUTH_LDAP_MIRROR_GROUPS = True
+
 !
 
 }
@@ -346,6 +420,13 @@ DJANGO_TIME_ZONE="Europe/Zagreb"
 DJANGO_USE_I18N=1
 DJANGO_USE_L10N=1
 DJANGO_USE_TZ=1
+
+LDAP_BIND_DN="your bind DN"
+LDAP_BIND_PW="your bind password"
+LDAP_SERVER_URL="ldap://your-ldap-fqdns-name"
+LDAP_BASE="DC=AAA,DC=BBB"
+LDAP_IS_STAFF_GROUP="cn of group to use for staff"
+LDAP_IS_ACTIVE_GROUP="cn of group to use for active"
 
 !
     ) >> .env
