@@ -9,31 +9,26 @@ LOG_FILE="${LOG_DIR}/${THIS}-${DATE}.log"
 
 # ==============================
 
-HERE=$( realpath .)
-
 PY_VERSION="3.12"
-
 WITH_ERASE_PREVIOUS="1"
 
-WITH_REST="0"
-WITH_LDAP="0"
-WITH_FORMATTING="0"
-
-VENV="xdev"
-
-PROJECT_NAME="project" # the django project name
-PG_USER="xdev"
-PG_DB="xdevdb"
+export HERE=$( realpath .)
+export WITH_REST="0"
+export WITH_LDAP="0"
+export WITH_FORMATTING="0"
+export VENV="xdev"
+export PROJECT_NAME="project" # the django project name
+export PG_USER="xdev"
+export PG_DB="xdevdb"
 
 USER=$( id -u -n)
 GROUP=$( id -g -n )
 
+TESTPORT=8888
 NGINX_PORT="83"
 GUNICORN_NAME="gunicorn003"
 
-TESTPORT=8888
-
-PG_DATABASE_EXISTS=0
+export PG_DATABASE_EXISTS=0
 
 # ==============================
 
@@ -106,16 +101,16 @@ install_django()
         pip3 install drf-spectacular
     }
 
+    (
+        cd "${VENV}"
+        pip3 freeze > requirements.txt
+    )
+
     [ "${WITH_FORMATTING}" = "1" ] && {
         pip3 install black
         pip3 install pylama
         pip3 install mypy
     }
-
-    (
-        cd "${VENV}"
-        pip3 freeze > requirements.txt
-    )
 }
 
 mk_nginx_conf()
@@ -191,6 +186,7 @@ PrivateTmp=true
 [Install]
 WantedBy=multi-user.target
 !
+
 }
 
 mk_gunicorn_systemd_socket()
@@ -214,7 +210,11 @@ WantedBy=sockets.target
 prep_pg_db()
 {
     echo
-    local pw=$( pwgen -s 8 1 | tee "${VENV}/.db_pw" )
+
+    local pw=$(
+        pwgen -s 8 1 |
+        tee "${VENV}/.db_pw"
+    )
 
     # sudo su - postgres
     # psql
@@ -242,7 +242,7 @@ import dotenv
 
 dotenv.load_dotenv()
 
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY","")
 DEBUG = bool(os.getenv("DJANGO_DEBUG", False))
 
 ALLOWED_HOSTS = [
@@ -311,10 +311,8 @@ TEMPLATES[0]["DIRS"] = [
     f"{BASE_DIR}/templates",
 ]
 
-if os.path.exists(f"{BASE_DIR}/aMain"):
-    INSTALLED_APPS.append("aMain.apps.AmainConfig")
-
 !
+
 }
 
 make_dot_env()
@@ -322,7 +320,7 @@ make_dot_env()
     touch .env
 
     (
-    cat <<!
+        cat <<!
 # centralize configuration
 ENVIRONMENT="DEV"
 
@@ -345,16 +343,16 @@ PG_PORT=5432"
 
 DJANGO_LANGUAGE_CODE="en-us"
 DJANGO_TIME_ZONE="Europe/Zagreb"
-DJANGO_USE_I18N=True
-DJANGO_USE_L10N=True
-DJANGO_USE_TZ=True
+DJANGO_USE_I18N=1
+DJANGO_USE_L10N=1
+DJANGO_USE_TZ=1
 
 !
     ) >> .env
 }
 
 
-make_aMain()
+make_app_Main()
 {
     local name="aMain"
 
@@ -363,9 +361,13 @@ make_aMain()
     # pushd "${PROJECT_NAME}"
 
     ./manage.py startapp "${name}" # abstract models
+
+    # ------------------------------------------------
     pushd "${name}"
 
     mkdir -p "templates/${name}"
+
+    # ------------------------------------------------
     cat <<! >"templates/${name}/index.html"
 
 {% extends "base_generic.html" %}
@@ -386,6 +388,8 @@ make_aMain()
 {% endblock %}
 
 !
+
+    # ------------------------------------------------
     cat <<! >views.py
 from django.shortcuts import (
     render,
@@ -410,6 +414,7 @@ def index(request):
     return render(request, "${name}/index.html", context)
 !
 
+    # ------------------------------------------------
     cat <<! >urls.py
 from django.urls import path
 
@@ -422,6 +427,7 @@ urlpatterns = [
 
     popd
 
+    # ------------------------------------------------
     pushd "${PROJECT_NAME}"
 
     cat <<! >>urls.py
@@ -432,6 +438,11 @@ urlpatterns.append(
 )
 !
 
+    cat <<! >> settings.py
+
+INSTALLED_APPS.append("aMain.apps.AmainConfig")
+
+!
     popd
 }
 
@@ -494,8 +505,21 @@ make_base_template()
 </body>
 
 </html>
-
 !
+
+}
+
+make_global_templates()
+{
+    mkdir templates
+    pushd templates
+        make_base_template
+    popd
+}
+
+make_app_abstract()
+{
+   ./manage.py startapp aAbstract # abstract models
 
 }
 
@@ -522,14 +546,10 @@ main()
             # static
             mkdir static
 
-            mkdir templates
-            pushd templates
-                make_base_template
-            popd
+            make_global_templates
 
-            ./manage.py startapp aAbstract # abstract models
-
-            make_aMain
+            make_app_abstract
+            make_app_Main
 
             ./manage.py migrate
             ./manage.py collectstatic
